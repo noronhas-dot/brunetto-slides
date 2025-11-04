@@ -43,10 +43,14 @@ export function useAuth(options?: UseAuthOptions) {
 
   // Sync user data to localStorage only when it changes (not on every render)
   useEffect(() => {
-    localStorage.setItem(
-      "manus-runtime-user-info",
-      JSON.stringify(meQuery.data)
-    );
+    if (meQuery.data) {
+      localStorage.setItem(
+        "manus-runtime-user-info",
+        JSON.stringify(meQuery.data)
+      );
+    } else {
+      localStorage.removeItem("manus-runtime-user-info");
+    }
   }, [meQuery.data]);
 
   const state = useMemo(() => {

@@ -268,8 +268,12 @@ export async function reorderTemplateSlides(templateId: string, organizationId: 
   const template = await getTemplateById(templateId, organizationId);
   if (!template) throw new Error("Template not found");
   
-  // Batch update positions using a transaction to avoid N+1 queries
-  // This improves performance significantly when reordering multiple slides
+  // PERFORMANCE: Batch update positions using a transaction
+  // While this still executes N UPDATE statements, it ensures atomicity and reduces round-trips
+  // For further optimization with larger datasets, consider:
+  // 1. Using raw SQL with CASE WHEN for single-query bulk update
+  // 2. Using batch operations if Drizzle ORM adds support
+  // Current approach is good for typical use cases (< 100 slides per template)
   await db.transaction(async (tx) => {
     for (const { slideId, position } of slidePositions) {
       await tx.update(templateSlides)

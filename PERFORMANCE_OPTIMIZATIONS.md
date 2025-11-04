@@ -31,9 +31,10 @@ Added indexes to frequently queried columns to dramatically improve query perfor
 
 #### Fixed N+1 Query Problem
 - **Location**: `server/db.ts` - `reorderTemplateSlides()` function
-- **Problem**: Was executing one UPDATE query per slide in a loop
+- **Problem**: Was executing one UPDATE query per slide in a loop without transaction
 - **Solution**: Wrapped updates in a database transaction
-- **Impact**: Reduces database round-trips and ensures atomicity. For reordering 10 slides, this reduces from 10+ queries to 1 transaction.
+- **Impact**: Ensures atomicity and reduces database round-trips. For reordering 10 slides, this provides transaction safety and better performance.
+- **Note**: For very large batches (100+ slides), consider raw SQL with CASE WHEN for single-query bulk updates. Current solution is optimal for typical use cases.
 
 ### 2. Frontend Optimizations
 
