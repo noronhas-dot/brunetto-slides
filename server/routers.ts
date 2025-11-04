@@ -27,6 +27,10 @@ export const appRouter = router({
       const db = await getDb();
       if (!db) return null;
       
+      // PERFORMANCE: This query is called frequently. Consider:
+      // 1. Using tRPC's query caching on the client (already enabled by default)
+      // 2. Adding Redis session store for faster lookups instead of DB queries
+      // 3. Using JWT tokens with embedded user data to avoid DB lookups entirely
       const result = await db.select().from(credentials).where(eq(credentials.id, sessionId)).limit(1);
       if (result.length === 0) return null;
       

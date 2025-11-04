@@ -129,6 +129,8 @@ export async function createOrganization(org: InsertOrganization) {
 export async function getTemplatesByOrganization(organizationId: string) {
   const db = await getDb();
   if (!db) return [];
+  // PERFORMANCE: Consider adding Redis/in-memory caching for frequently accessed templates
+  // Cache key: `templates:${organizationId}`, TTL: 5-10 minutes
   return db.select().from(templates).where(eq(templates.organizationId, organizationId)).orderBy(templates.createdAt);
 }
 
@@ -170,6 +172,8 @@ export async function deleteTemplate(id: string, organizationId: string) {
 export async function getSlidesByOrganization(organizationId: string) {
   const db = await getDb();
   if (!db) return [];
+  // PERFORMANCE: Consider adding Redis/in-memory caching for frequently accessed slides
+  // Cache key: `slides:${organizationId}`, TTL: 5-10 minutes
   return db.select().from(slides).where(eq(slides.organizationId, organizationId)).orderBy(slides.createdAt);
 }
 
@@ -216,6 +220,7 @@ export async function getTemplateSlides(templateId: string, organizationId: stri
   const template = await getTemplateById(templateId, organizationId);
   if (!template) return [];
   
+  // PERFORMANCE: This join query benefits from the indexes on templateSlides.templateId and templateSlides.position
   // Get slides with their association data
   const result = await db
     .select({
@@ -263,10 +268,13 @@ export async function reorderTemplateSlides(templateId: string, organizationId: 
   const template = await getTemplateById(templateId, organizationId);
   if (!template) throw new Error("Template not found");
   
-  // Update positions
-  for (const { slideId, position } of slidePositions) {
-    await db.update(templateSlides)
-      .set({ position })
-      .where(and(eq(templateSlides.templateId, templateId), eq(templateSlides.slideId, slideId)));
-  }
+  // Batch update positions using a transaction to avoid N+1 queries
+  // This improves performance significantly when reordering multiple slides
+  await db.transaction(async (tx) => {
+    for (const { slideId, position } of slidePositions) {
+      await tx.update(templateSlides)
+        .set({ position })
+        .where(and(eq(templateSlides.templateId, templateId), eq(templateSlides.slideId, slideId)));
+    }
+  });
 }

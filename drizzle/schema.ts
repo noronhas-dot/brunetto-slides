@@ -1,5 +1,6 @@
 import {
   boolean,
+  index,
   int,
   json,
   mysqlEnum,
@@ -42,7 +43,10 @@ export const users = mysqlTable("users", {
   role: mysqlEnum("role", ["owner", "admin", "editor", "viewer"]).default("viewer").notNull(),
   createdAt: timestamp("createdAt").defaultNow(),
   lastSignedIn: timestamp("lastSignedIn").defaultNow(),
-});
+}, (table) => ({
+  // Index for filtering users by organization - improves query performance
+  organizationIdx: index("organization_idx").on(table.organizationId),
+}));
 
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
@@ -61,7 +65,14 @@ export const templates = mysqlTable("templates", {
   createdBy: varchar("createdBy", { length: 64 }),
   createdAt: timestamp("createdAt").defaultNow(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow(),
-});
+}, (table) => ({
+  // Index for filtering templates by organization - critical for multi-tenant queries
+  organizationIdx: index("template_organization_idx").on(table.organizationId),
+  // Index for finding default templates quickly
+  isDefaultIdx: index("template_is_default_idx").on(table.isDefault),
+  // Composite index for common query pattern: organization + creation time
+  orgCreatedIdx: index("template_org_created_idx").on(table.organizationId, table.createdAt),
+}));
 
 export type Template = typeof templates.$inferSelect;
 export type InsertTemplate = typeof templates.$inferInsert;
@@ -84,6 +95,10 @@ export const slides = mysqlTable("slides", {
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow(),
 }, (table) => ({
   uniqueOrgSlide: uniqueIndex("unique_org_slide").on(table.organizationId, table.slideId),
+  // Index for filtering slides by organization
+  organizationIdx: index("slide_organization_idx").on(table.organizationId),
+  // Composite index for common query pattern: organization + creation time
+  orgCreatedIdx: index("slide_org_created_idx").on(table.organizationId, table.createdAt),
 }));
 
 export type Slide = typeof slides.$inferSelect;
@@ -101,6 +116,12 @@ export const templateSlides = mysqlTable("template_slides", {
   createdAt: timestamp("createdAt").defaultNow(),
 }, (table) => ({
   uniqueTemplateSlide: uniqueIndex("unique_template_slide").on(table.templateId, table.slideId),
+  // Index for efficient joins on templateId - critical for getTemplateSlides query
+  templateIdx: index("template_slide_template_idx").on(table.templateId),
+  // Index on slideId for reverse lookups
+  slideIdx: index("template_slide_slide_idx").on(table.slideId),
+  // Composite index for ordering slides within a template
+  templatePositionIdx: index("template_slide_position_idx").on(table.templateId, table.position),
 }));
 
 export type TemplateSlide = typeof templateSlides.$inferSelect;
@@ -119,7 +140,14 @@ export const activityLog = mysqlTable("activity_log", {
   entityId: varchar("entityId", { length: 64 }).notNull(),
   metadata: json("metadata"), // Additional context
   createdAt: timestamp("createdAt").defaultNow(),
-});
+}, (table) => ({
+  // Index for filtering activity by organization
+  organizationIdx: index("activity_organization_idx").on(table.organizationId),
+  // Index for filtering activity by user
+  userIdx: index("activity_user_idx").on(table.userId),
+  // Composite index for common query: organization + timestamp (for activity feeds)
+  orgCreatedIdx: index("activity_org_created_idx").on(table.organizationId, table.createdAt),
+}));
 
 export type ActivityLog = typeof activityLog.$inferSelect;
 export type InsertActivityLog = typeof activityLog.$inferInsert;
@@ -138,7 +166,10 @@ export const credentials = mysqlTable("credentials", {
   role: varchar("role", { length: 64 }).default("viewer").notNull(),
   createdAt: timestamp("createdAt").defaultNow(),
   lastSignedIn: timestamp("lastSignedIn"),
-});
+}, (table) => ({
+  // Index for filtering credentials by organization
+  organizationIdx: index("credential_organization_idx").on(table.organizationId),
+}));
 
 export type Credential = typeof credentials.$inferSelect;
 export type InsertCredential = typeof credentials.$inferInsert;
